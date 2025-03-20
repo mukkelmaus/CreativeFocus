@@ -36,14 +36,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // ---------------------------------------------------
+  // Authentication Routes
+  // ---------------------------------------------------
+  
+  // Register a new user
+  app.post("/api/register", async (req, res) => {
+    try {
+      const userData = req.body;
+      const validatedData = insertUserSchema.parse(userData);
+      
+      const { user, token } = await registerUser(validatedData);
+      
+      // Set HTTP-only cookie with the token
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      });
+      
+      // Don't return the password in the response
+      const { password, ...userWithoutPassword } = user;
+      
+      res.status(201).json(userWithoutPassword);
+    } catch (error) {
+      console.error("Registration error:", error);
+      if (error.message === "Username already exists") {
+        return res.status(400).json({ message: error.message });
+      }
+      handleValidationError(error, res);
+    }
+  });
+  
+  // Login a user
+  app.post("/api/login", async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      
+      if (!username || !password) {
+        return res.status(400).json({ message: "Username and password are required" });
+      }
+      
+      const { user, token } = await loginUser(username, password);
+      
+      // Set HTTP-only cookie with the token
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      });
+      
+      // Don't return the password in the response
+      const { password: _, ...userWithoutPassword } = user;
+      
+      res.status(200).json(userWithoutPassword);
+    } catch (error) {
+      console.error("Login error:", error);
+      
+      if (error.message === "Invalid credentials") {
+        return res.status(401).json({ message: "Invalid username or password" });
+      }
+      
+      res.status(500).json({ message: "Login failed" });
+    }
+  });
+  
+  // Logout a user
+  app.post("/api/logout", (req, res) => {
+    res.clearCookie('token');
+    res.status(200).json({ message: "Logged out successfully" });
+  });
+  
+  // Get current user
+  app.get("/api/user", authenticate, (req: AuthRequest, res) => {
+    if (!req.user) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    
+    // Don't return the password in the response
+    const { password, ...userWithoutPassword } = req.user;
+    
+    res.json(userWithoutPassword);
+  });
+
+  // ---------------------------------------------------
   // Task Routes
   // ---------------------------------------------------
   
   // Get all tasks for user
-  app.get("/api/tasks", async (req, res) => {
+  app.get("/api/tasks", authenticate, async (req: AuthRequest, res) => {
     try {
-      // For demo purposes, we'll use user ID 1
-      const userId = 1;
+      // Use the authenticated user's ID
+      const userId = req.user!.id;
       const tasks = await storage.getTasks(userId);
       res.json(tasks);
     } catch (error) {

@@ -7,29 +7,57 @@ import Dashboard from "@/pages/dashboard";
 import Tasks from "@/pages/tasks";
 import TaskHistory from "@/pages/task-history";
 import Settings from "@/pages/settings";
+import AuthPage from "@/pages/auth-page";
 import { Layout } from "@/components/layout/layout";
+import { ProtectedRoute } from "./lib/protected-route";
+import { AuthProvider } from "./hooks/use-auth";
 
 function Router() {
   return (
-    <Layout>
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/today" component={Tasks} />
-        <Route path="/upcoming" component={Tasks} />
-        <Route path="/history" component={TaskHistory} />
-        <Route path="/settings" component={Settings} />
-        <Route path="/category/:id" component={Tasks} />
-        <Route component={NotFound} />
-      </Switch>
-    </Layout>
+    <Switch>
+      <ProtectedRoute path="/" component={() => (
+        <Layout>
+          <Dashboard />
+        </Layout>
+      )} />
+      <ProtectedRoute path="/today" component={() => (
+        <Layout>
+          <Tasks />
+        </Layout>
+      )} />
+      <ProtectedRoute path="/upcoming" component={() => (
+        <Layout>
+          <Tasks />
+        </Layout>
+      )} />
+      <ProtectedRoute path="/history" component={() => (
+        <Layout>
+          <TaskHistory />
+        </Layout>
+      )} />
+      <ProtectedRoute path="/settings" component={() => (
+        <Layout>
+          <Settings />
+        </Layout>
+      )} />
+      <ProtectedRoute path="/category/:id" component={() => (
+        <Layout>
+          <Tasks />
+        </Layout>
+      )} />
+      <Route path="/auth" component={AuthPage} />
+      <Route component={NotFound} />
+    </Switch>
   );
 }
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router />
-      <Toaster />
+      <AuthProvider>
+        <Router />
+        <Toaster />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

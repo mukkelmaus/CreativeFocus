@@ -1,13 +1,13 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
-import { storage } from './storage';
-import { InsertUser, User } from '@shared/schema';
+import { Request, Response, NextFunction } from "express";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { storage } from "./storage";
+import { User, InsertUser } from "@shared/schema";
 
-// Secret key for JWT (in production, this should be in an environment variable)
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-for-development';
-const TOKEN_EXPIRY = '1d'; // Token expiration time
+// Secret for signing JWT tokens
+const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
 
+// Extended Request interface with user property
 export interface AuthRequest extends Request {
   user?: User;
 }
@@ -19,7 +19,7 @@ export interface AuthRequest extends Request {
  */
 export async function hashPassword(password: string): Promise<string> {
   const salt = await bcrypt.genSalt(10);
-  return bcrypt.hash(password, salt);
+  return await bcrypt.hash(password, salt);
 }
 
 /**
@@ -28,8 +28,11 @@ export async function hashPassword(password: string): Promise<string> {
  * @param hashedPassword Hashed password
  * @returns Boolean indicating if the passwords match
  */
-export async function comparePasswords(password: string, hashedPassword: string): Promise<boolean> {
-  return bcrypt.compare(password, hashedPassword);
+export async function comparePasswords(
+  password: string,
+  hashedPassword: string
+): Promise<boolean> {
+  return await bcrypt.compare(password, hashedPassword);
 }
 
 /**
@@ -38,13 +41,11 @@ export async function comparePasswords(password: string, hashedPassword: string)
  * @returns JWT token
  */
 export function generateToken(user: User): string {
-  const payload = {
-    id: user.id,
-    username: user.username,
-    email: user.email
-  };
-
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+  return jwt.sign(
+    { id: user.id, username: user.username },
+    JWT_SECRET,
+    { expiresIn: "7d" }
+  );
 }
 
 /**
@@ -53,31 +54,41 @@ export function generateToken(user: User): string {
  * @param res Response object
  * @param next Next function
  */
-export async function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
+export async function authenticate(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
   try {
-    // Get token from cookie or Authorization header
-    const token = req.cookies?.token || req.headers.authorization?.split(' ')[1];
+    // Get token from cookie or authorization header
+    let token = req.cookies.token;
     
+    if (!token && req.headers.authorization) {
+      // Format: "Bearer <token>"
+      const authHeader = req.headers.authorization;
+      if (authHeader.startsWith("Bearer ")) {
+        token = authHeader.substring(7);
+      }
+    }
+
     if (!token) {
-      return res.status(401).json({ message: 'Authentication required' });
+      return res.status(401).json({ message: "Not authenticated" });
     }
 
     // Verify token
     const decoded = jwt.verify(token, JWT_SECRET) as { id: number };
-    
-    // Get user from database
     const user = await storage.getUser(decoded.id);
-    
+
     if (!user) {
-      return res.status(401).json({ message: 'Invalid token, user not found' });
+      return res.status(401).json({ message: "User not found" });
     }
 
-    // Attach user to request
+    // Set user in request object
     req.user = user;
     next();
   } catch (error) {
-    console.error('Authentication error:', error);
-    return res.status(401).json({ message: 'Invalid token' });
+    console.error("Authentication error:", error);
+    return res.status(401).json({ message: "Invalid token" });
   }
 }
 
@@ -87,18 +98,23 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
  * @returns Created user object and token
  */
 export async function registerUser(userData: InsertUser): Promise<{ user: User; token: string }> {
+  // Check if user with the same username already exists
+  const existingUser = await storage.getUserByUsername(userData.username);
+  if (existingUser) {
+    throw new Error("Username already exists");
+  }
+
   // Hash password
   const hashedPassword = await hashPassword(userData.password);
   
   // Create user with hashed password
   const user = await storage.createUser({
     ...userData,
-    password: hashedPassword
+    password: hashedPassword,
   });
 
-  // Generate token
+  // Generate and return token
   const token = generateToken(user);
-
   return { user, token };
 }
 
@@ -111,20 +127,17 @@ export async function registerUser(userData: InsertUser): Promise<{ user: User; 
 export async function loginUser(username: string, password: string): Promise<{ user: User; token: string }> {
   // Find user by username
   const user = await storage.getUserByUsername(username);
-
   if (!user) {
-    throw new Error('Invalid username or password');
+    throw new Error("Invalid credentials");
   }
 
-  // Compare password
+  // Check password
   const isMatch = await comparePasswords(password, user.password);
-
   if (!isMatch) {
-    throw new Error('Invalid username or password');
+    throw new Error("Invalid credentials");
   }
 
-  // Generate token
+  // Generate and return token
   const token = generateToken(user);
-
   return { user, token };
 }
