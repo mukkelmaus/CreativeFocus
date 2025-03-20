@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import { Task, InsertTask, TaskPriority } from "@shared/schema";
 
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "demo-key" });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export interface TaskBreakdownSuggestion {
   subtasks: {
@@ -27,7 +27,7 @@ export interface WorkflowSuggestion {
 export async function generateTaskBreakdown(task: Task, userId: number): Promise<TaskBreakdownSuggestion> {
   try {
     // Check if we have a valid API key
-    if (process.env.OPENAI_API_KEY === "demo-key") {
+    if (!process.env.OPENAI_API_KEY) {
       // Return mock data if no API key provided
       return getMockTaskBreakdown(task);
     }
@@ -71,7 +71,7 @@ export async function generateTaskBreakdown(task: Task, userId: number): Promise
 export async function generateWorkflowSuggestions(tasks: Task[], userId: number): Promise<WorkflowSuggestion> {
   try {
     // Check if we have a valid API key
-    if (process.env.OPENAI_API_KEY === "demo-key") {
+    if (!process.env.OPENAI_API_KEY) {
       // Return mock data if no API key provided
       return getMockWorkflowSuggestion(tasks);
     }
