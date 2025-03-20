@@ -6,7 +6,10 @@ import {
   insertTaskSchema, 
   insertCategorySchema, 
   TaskStatus,
-  insertUserPreferencesSchema
+  insertUserPreferencesSchema,
+  insertCalendarIntegrationSchema,
+  insertWorkspaceSchema,
+  insertWorkspaceMemberSchema
 } from "@shared/schema";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
@@ -321,6 +324,256 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error generating workflow suggestions:", error);
       res.status(500).json({ message: "Failed to generate workflow suggestions" });
+    }
+  });
+
+  // ---------------------------------------------------
+  // Calendar Integration Routes
+  // ---------------------------------------------------
+  
+  // Get all calendar integrations for user
+  app.get("/api/calendar-integrations", async (req, res) => {
+    try {
+      const userId = 1;
+      const integrations = await storage.getCalendarIntegrations(userId);
+      res.json(integrations);
+    } catch (error) {
+      console.error("Error fetching calendar integrations:", error);
+      res.status(500).json({ message: "Failed to fetch calendar integrations" });
+    }
+  });
+  
+  // Get a specific calendar integration
+  app.get("/api/calendar-integrations/:id", async (req, res) => {
+    try {
+      const integrationId = parseInt(req.params.id);
+      const integration = await storage.getCalendarIntegrationById(integrationId);
+      
+      if (!integration) {
+        return res.status(404).json({ message: "Calendar integration not found" });
+      }
+      
+      res.json(integration);
+    } catch (error) {
+      console.error("Error fetching calendar integration:", error);
+      res.status(500).json({ message: "Failed to fetch calendar integration" });
+    }
+  });
+  
+  // Create a new calendar integration
+  app.post("/api/calendar-integrations", async (req, res) => {
+    try {
+      const userId = 1;
+      const integrationData = { ...req.body, userId };
+      
+      const validatedData = insertCalendarIntegrationSchema.parse(integrationData);
+      const integration = await storage.createCalendarIntegration(validatedData);
+      
+      res.status(201).json(integration);
+    } catch (error) {
+      console.error("Error creating calendar integration:", error);
+      handleValidationError(error, res);
+    }
+  });
+  
+  // Update a calendar integration
+  app.patch("/api/calendar-integrations/:id", async (req, res) => {
+    try {
+      const integrationId = parseInt(req.params.id);
+      const integrationData = req.body;
+      
+      // Validate only the provided fields
+      const partialIntegrationSchema = insertCalendarIntegrationSchema.partial();
+      const validatedData = partialIntegrationSchema.parse(integrationData);
+      
+      const updatedIntegration = await storage.updateCalendarIntegration(integrationId, validatedData);
+      
+      if (!updatedIntegration) {
+        return res.status(404).json({ message: "Calendar integration not found" });
+      }
+      
+      res.json(updatedIntegration);
+    } catch (error) {
+      console.error("Error updating calendar integration:", error);
+      handleValidationError(error, res);
+    }
+  });
+  
+  // Delete a calendar integration
+  app.delete("/api/calendar-integrations/:id", async (req, res) => {
+    try {
+      const integrationId = parseInt(req.params.id);
+      const success = await storage.deleteCalendarIntegration(integrationId);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Calendar integration not found" });
+      }
+      
+      res.status(204).end();
+    } catch (error) {
+      console.error("Error deleting calendar integration:", error);
+      res.status(500).json({ message: "Failed to delete calendar integration" });
+    }
+  });
+
+  // ---------------------------------------------------
+  // Workspace Routes
+  // ---------------------------------------------------
+  
+  // Get all workspaces for user
+  app.get("/api/workspaces", async (req, res) => {
+    try {
+      const userId = 1;
+      const workspaces = await storage.getWorkspaces(userId);
+      res.json(workspaces);
+    } catch (error) {
+      console.error("Error fetching workspaces:", error);
+      res.status(500).json({ message: "Failed to fetch workspaces" });
+    }
+  });
+  
+  // Get a specific workspace
+  app.get("/api/workspaces/:id", async (req, res) => {
+    try {
+      const workspaceId = parseInt(req.params.id);
+      const workspace = await storage.getWorkspaceById(workspaceId);
+      
+      if (!workspace) {
+        return res.status(404).json({ message: "Workspace not found" });
+      }
+      
+      res.json(workspace);
+    } catch (error) {
+      console.error("Error fetching workspace:", error);
+      res.status(500).json({ message: "Failed to fetch workspace" });
+    }
+  });
+  
+  // Create a new workspace
+  app.post("/api/workspaces", async (req, res) => {
+    try {
+      const userId = 1;
+      const workspaceData = { ...req.body, ownerId: userId };
+      
+      const validatedData = insertWorkspaceSchema.parse(workspaceData);
+      const workspace = await storage.createWorkspace(validatedData);
+      
+      res.status(201).json(workspace);
+    } catch (error) {
+      console.error("Error creating workspace:", error);
+      handleValidationError(error, res);
+    }
+  });
+  
+  // Update a workspace
+  app.patch("/api/workspaces/:id", async (req, res) => {
+    try {
+      const workspaceId = parseInt(req.params.id);
+      const workspaceData = req.body;
+      
+      // Validate only the provided fields
+      const partialWorkspaceSchema = insertWorkspaceSchema.partial();
+      const validatedData = partialWorkspaceSchema.parse(workspaceData);
+      
+      const updatedWorkspace = await storage.updateWorkspace(workspaceId, validatedData);
+      
+      if (!updatedWorkspace) {
+        return res.status(404).json({ message: "Workspace not found" });
+      }
+      
+      res.json(updatedWorkspace);
+    } catch (error) {
+      console.error("Error updating workspace:", error);
+      handleValidationError(error, res);
+    }
+  });
+  
+  // Delete a workspace
+  app.delete("/api/workspaces/:id", async (req, res) => {
+    try {
+      const workspaceId = parseInt(req.params.id);
+      const success = await storage.deleteWorkspace(workspaceId);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Workspace not found" });
+      }
+      
+      res.status(204).end();
+    } catch (error) {
+      console.error("Error deleting workspace:", error);
+      res.status(500).json({ message: "Failed to delete workspace" });
+    }
+  });
+  
+  // ---------------------------------------------------
+  // Workspace Members Routes
+  // ---------------------------------------------------
+  
+  // Get all members of a workspace
+  app.get("/api/workspaces/:workspaceId/members", async (req, res) => {
+    try {
+      const workspaceId = parseInt(req.params.workspaceId);
+      const members = await storage.getWorkspaceMembers(workspaceId);
+      res.json(members);
+    } catch (error) {
+      console.error("Error fetching workspace members:", error);
+      res.status(500).json({ message: "Failed to fetch workspace members" });
+    }
+  });
+  
+  // Add a member to a workspace
+  app.post("/api/workspaces/:workspaceId/members", async (req, res) => {
+    try {
+      const workspaceId = parseInt(req.params.workspaceId);
+      const memberData = { ...req.body, workspaceId };
+      
+      const validatedData = insertWorkspaceMemberSchema.parse(memberData);
+      const member = await storage.createWorkspaceMember(validatedData);
+      
+      res.status(201).json(member);
+    } catch (error) {
+      console.error("Error adding workspace member:", error);
+      handleValidationError(error, res);
+    }
+  });
+  
+  // Update a workspace member
+  app.patch("/api/workspace-members/:id", async (req, res) => {
+    try {
+      const memberId = parseInt(req.params.id);
+      const memberData = req.body;
+      
+      // Validate only the provided fields
+      const partialMemberSchema = insertWorkspaceMemberSchema.partial();
+      const validatedData = partialMemberSchema.parse(memberData);
+      
+      const updatedMember = await storage.updateWorkspaceMember(memberId, validatedData);
+      
+      if (!updatedMember) {
+        return res.status(404).json({ message: "Workspace member not found" });
+      }
+      
+      res.json(updatedMember);
+    } catch (error) {
+      console.error("Error updating workspace member:", error);
+      handleValidationError(error, res);
+    }
+  });
+  
+  // Remove a member from a workspace
+  app.delete("/api/workspace-members/:id", async (req, res) => {
+    try {
+      const memberId = parseInt(req.params.id);
+      const success = await storage.deleteWorkspaceMember(memberId);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Workspace member not found" });
+      }
+      
+      res.status(204).end();
+    } catch (error) {
+      console.error("Error removing workspace member:", error);
+      res.status(500).json({ message: "Failed to remove workspace member" });
     }
   });
 

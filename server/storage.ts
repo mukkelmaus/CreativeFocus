@@ -10,6 +10,12 @@ import {
   UserPreference,
   InsertUserPreference,
   TaskStatus,
+  CalendarIntegration,
+  InsertCalendarIntegration,
+  Workspace,
+  InsertWorkspace,
+  WorkspaceMember,
+  InsertWorkspaceMember,
 } from "@shared/schema";
 
 // Interface for storage operations
@@ -44,6 +50,28 @@ export interface IStorage {
   getUserPreferences(userId: number): Promise<UserPreference | undefined>;
   createUserPreferences(preferences: InsertUserPreference): Promise<UserPreference>;
   updateUserPreferences(userId: number, preferences: Partial<InsertUserPreference>): Promise<UserPreference | undefined>;
+  
+  // Calendar Integration operations
+  getCalendarIntegrations(userId: number): Promise<CalendarIntegration[]>;
+  getCalendarIntegrationById(id: number): Promise<CalendarIntegration | undefined>;
+  createCalendarIntegration(integration: InsertCalendarIntegration): Promise<CalendarIntegration>;
+  updateCalendarIntegration(id: number, integration: Partial<InsertCalendarIntegration>): Promise<CalendarIntegration | undefined>;
+  deleteCalendarIntegration(id: number): Promise<boolean>;
+  
+  // Workspace operations
+  getWorkspaces(userId: number): Promise<Workspace[]>;
+  getWorkspaceById(id: number): Promise<Workspace | undefined>;
+  createWorkspace(workspace: InsertWorkspace): Promise<Workspace>;
+  updateWorkspace(id: number, workspace: Partial<InsertWorkspace>): Promise<Workspace | undefined>;
+  deleteWorkspace(id: number): Promise<boolean>;
+  
+  // Workspace Members operations
+  getWorkspaceMembers(workspaceId: number): Promise<WorkspaceMember[]>;
+  getWorkspaceMemberById(id: number): Promise<WorkspaceMember | undefined>;
+  createWorkspaceMember(member: InsertWorkspaceMember): Promise<WorkspaceMember>;
+  updateWorkspaceMember(id: number, member: Partial<InsertWorkspaceMember>): Promise<WorkspaceMember | undefined>;
+  deleteWorkspaceMember(id: number): Promise<boolean>;
+  getWorkspacesByUserId(userId: number): Promise<Workspace[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -52,11 +80,17 @@ export class MemStorage implements IStorage {
   private categories: Map<number, Category>;
   private taskHistory: Map<number, TaskHistory>;
   private userPreferences: Map<number, UserPreference>;
+  private calendarIntegrations: Map<number, CalendarIntegration>;
+  private workspaces: Map<number, Workspace>;
+  private workspaceMembers: Map<number, WorkspaceMember>;
   private userIdCounter: number;
   private taskIdCounter: number;
   private categoryIdCounter: number;
   private historyIdCounter: number;
   private prefIdCounter: number;
+  private calendarIntegrationIdCounter: number;
+  private workspaceIdCounter: number;
+  private workspaceMemberIdCounter: number;
 
   constructor() {
     this.users = new Map();
@@ -64,11 +98,17 @@ export class MemStorage implements IStorage {
     this.categories = new Map();
     this.taskHistory = new Map();
     this.userPreferences = new Map();
+    this.calendarIntegrations = new Map();
+    this.workspaces = new Map();
+    this.workspaceMembers = new Map();
     this.userIdCounter = 1;
     this.taskIdCounter = 1;
     this.categoryIdCounter = 1;
     this.historyIdCounter = 1;
     this.prefIdCounter = 1;
+    this.calendarIntegrationIdCounter = 1;
+    this.workspaceIdCounter = 1;
+    this.workspaceMemberIdCounter = 1;
     
     // Initialize with some default data
     this.initializeDefaultData();
@@ -165,6 +205,28 @@ export class MemStorage implements IStorage {
       focusModeEnabled: false,
       focusModeDuration: 60,
       showCompletedTasks: true
+    });
+    
+    // Create default workspace
+    const workspace = this.createWorkspace({
+      name: "Personal Workspace",
+      description: "Your personal workspace for tasks and projects",
+      ownerId: user.id,
+      color: "#4f46e5",
+      isPublic: false
+    });
+    
+    // Create default calendar integration
+    this.createCalendarIntegration({
+      userId: user.id,
+      provider: "google",
+      name: "Google Calendar",
+      accessToken: "",
+      refreshToken: "",
+      tokenExpiry: new Date(Date.now() + 3600000), // 1 hour from now
+      calendarId: "",
+      active: false,
+      settings: {}
     });
 
     // Add some completed tasks to history
@@ -381,6 +443,150 @@ export class MemStorage implements IStorage {
     
     this.userPreferences.set(preferences.id, updatedPreferences);
     return updatedPreferences;
+  }
+
+  // Calendar Integration operations
+  async getCalendarIntegrations(userId: number): Promise<CalendarIntegration[]> {
+    return Array.from(this.calendarIntegrations.values())
+      .filter(integration => integration.userId === userId);
+  }
+
+  async getCalendarIntegrationById(id: number): Promise<CalendarIntegration | undefined> {
+    return this.calendarIntegrations.get(id);
+  }
+
+  async createCalendarIntegration(integration: InsertCalendarIntegration): Promise<CalendarIntegration> {
+    const id = this.calendarIntegrationIdCounter++;
+    const now = new Date();
+    const newIntegration: CalendarIntegration = { 
+      ...integration, 
+      id, 
+      createdAt: now, 
+      updatedAt: now,
+      lastSynced: null
+    };
+    this.calendarIntegrations.set(id, newIntegration);
+    return newIntegration;
+  }
+
+  async updateCalendarIntegration(id: number, updateData: Partial<InsertCalendarIntegration>): Promise<CalendarIntegration | undefined> {
+    const integration = this.calendarIntegrations.get(id);
+    if (!integration) return undefined;
+
+    const now = new Date();
+    const updatedIntegration: CalendarIntegration = { 
+      ...integration, 
+      ...updateData, 
+      updatedAt: now 
+    };
+    
+    this.calendarIntegrations.set(id, updatedIntegration);
+    return updatedIntegration;
+  }
+
+  async deleteCalendarIntegration(id: number): Promise<boolean> {
+    return this.calendarIntegrations.delete(id);
+  }
+
+  // Workspace operations
+  async getWorkspaces(userId: number): Promise<Workspace[]> {
+    // Get all workspace IDs where the user is a member
+    const memberWorkspaceIds = Array.from(this.workspaceMembers.values())
+      .filter(member => member.userId === userId)
+      .map(member => member.workspaceId);
+    
+    // Return all workspaces where the user is a member
+    return Array.from(this.workspaces.values())
+      .filter(workspace => 
+        workspace.ownerId === userId || // User is the owner
+        memberWorkspaceIds.includes(workspace.id) // User is a member
+      );
+  }
+
+  async getWorkspaceById(id: number): Promise<Workspace | undefined> {
+    return this.workspaces.get(id);
+  }
+
+  async createWorkspace(workspace: InsertWorkspace): Promise<Workspace> {
+    const id = this.workspaceIdCounter++;
+    const now = new Date();
+    const newWorkspace: Workspace = { 
+      ...workspace, 
+      id, 
+      createdAt: now, 
+      updatedAt: now 
+    };
+    this.workspaces.set(id, newWorkspace);
+    return newWorkspace;
+  }
+
+  async updateWorkspace(id: number, updateData: Partial<InsertWorkspace>): Promise<Workspace | undefined> {
+    const workspace = this.workspaces.get(id);
+    if (!workspace) return undefined;
+
+    const now = new Date();
+    const updatedWorkspace: Workspace = { 
+      ...workspace, 
+      ...updateData, 
+      updatedAt: now 
+    };
+    
+    this.workspaces.set(id, updatedWorkspace);
+    return updatedWorkspace;
+  }
+
+  async deleteWorkspace(id: number): Promise<boolean> {
+    // First delete all workspace members
+    Array.from(this.workspaceMembers.values())
+      .filter(member => member.workspaceId === id)
+      .forEach(member => this.workspaceMembers.delete(member.id));
+    
+    // Then delete the workspace
+    return this.workspaces.delete(id);
+  }
+
+  // Workspace Members operations
+  async getWorkspaceMembers(workspaceId: number): Promise<WorkspaceMember[]> {
+    return Array.from(this.workspaceMembers.values())
+      .filter(member => member.workspaceId === workspaceId);
+  }
+
+  async getWorkspaceMemberById(id: number): Promise<WorkspaceMember | undefined> {
+    return this.workspaceMembers.get(id);
+  }
+
+  async createWorkspaceMember(member: InsertWorkspaceMember): Promise<WorkspaceMember> {
+    const id = this.workspaceMemberIdCounter++;
+    const now = new Date();
+    const newMember: WorkspaceMember = { 
+      ...member, 
+      id, 
+      joinedAt: now
+    };
+    this.workspaceMembers.set(id, newMember);
+    return newMember;
+  }
+
+  async updateWorkspaceMember(id: number, updateData: Partial<InsertWorkspaceMember>): Promise<WorkspaceMember | undefined> {
+    const member = this.workspaceMembers.get(id);
+    if (!member) return undefined;
+
+    const updatedMember: WorkspaceMember = { 
+      ...member, 
+      ...updateData
+    };
+    
+    this.workspaceMembers.set(id, updatedMember);
+    return updatedMember;
+  }
+
+  async deleteWorkspaceMember(id: number): Promise<boolean> {
+    return this.workspaceMembers.delete(id);
+  }
+
+  async getWorkspacesByUserId(userId: number): Promise<Workspace[]> {
+    // This is a more direct way to get workspaces by user ID
+    return this.getWorkspaces(userId);
   }
 }
 
