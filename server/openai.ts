@@ -41,11 +41,12 @@ export async function generateTaskBreakdown(task: Task, userId: number): Promise
             "You are a productivity assistant that helps users break down complex tasks into manageable steps. " +
             "For each task, provide 3-5 subtasks that would help complete the main task. " +
             "Each subtask should have a clear title, brief description, priority level (high, medium, low), " +
-            "and estimated time in minutes to complete."
+            "and estimated time in minutes to complete. " +
+            "Return your response as a JSON object with a 'subtasks' array containing the subtasks."
         },
         {
           role: "user",
-          content: `Please break down this task into subtasks: "${task.title}". Description: "${task.description || 'No description provided.'}"`
+          content: `Please break down this task into subtasks: "${task.title}". Description: "${task.description || 'No description provided.'}". Format your response as JSON.`
         }
       ],
       response_format: { type: "json_object" }
@@ -92,11 +93,12 @@ export async function generateWorkflowSuggestions(tasks: Task[], userId: number)
           content: 
             "You are a productivity assistant that helps users optimize their workflow. " +
             "Based on the user's tasks, provide helpful suggestions for improving their productivity " +
-            "and task management. Focus on practical advice that can be implemented immediately."
+            "and task management. Focus on practical advice that can be implemented immediately. " +
+            "Return your response as a JSON object with a 'message' string and a 'suggestedActions' array of strings."
         },
         {
           role: "user",
-          content: `Here are my current tasks: ${JSON.stringify(taskSummary)}. Please provide suggestions to optimize my workflow.`
+          content: `Here are my current tasks: ${JSON.stringify(taskSummary)}. Please provide suggestions to optimize my workflow in JSON format.`
         }
       ],
       response_format: { type: "json_object" }
