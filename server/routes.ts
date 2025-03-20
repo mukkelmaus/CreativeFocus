@@ -1,5 +1,6 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
+import { WebSocketServer } from "ws";
 import { storage } from "./storage";
 import { generateTaskBreakdown, generateWorkflowSuggestions } from "./openai";
 import { 
@@ -9,10 +10,17 @@ import {
   insertUserPreferencesSchema,
   insertCalendarIntegrationSchema,
   insertWorkspaceSchema,
-  insertWorkspaceMemberSchema
+  insertWorkspaceMemberSchema,
+  insertUserSchema
 } from "@shared/schema";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
+import { 
+  authenticate, 
+  registerUser, 
+  loginUser, 
+  AuthRequest 
+} from "./auth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Error handling middleware for validation errors
